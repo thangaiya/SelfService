@@ -1,0 +1,84 @@
+import cx_Oracle
+import csv
+import json
+import os.path
+import ntpath
+from collections import OrderedDict
+
+def list_equality_comparison(lista, listb):
+    return set(lista) == set(listb) and len(lista) == len(listb)
+
+csvFilePath = 'F:\SelfService\DataFile\Zbereport05_bis_Detail.csv'
+jsonFilePath = 'F:\SelfService\Spec\Zbereport05_bis_Detail.json'
+
+csvDirName = os.path.dirname(csvFilePath)
+csvFileName = ntpath.basename(csvFilePath)
+
+jsonDirName = os.path.dirname(jsonFilePath)
+jsonFileName = ntpath.basename(jsonFilePath)
+
+configFilePath = os.path.join(csvDirName, jsonFileName)
+csvDictReader = csv.DictReader(open(csvFilePath), delimiter=';')
+csvFields = [item.strip() for item in csvDictReader.fieldnames]
+
+if os.path.exists(configFilePath):
+
+    jsonF = open('F:\SelfService\Spec\Zbereport05_bis_Detail.json', 'r+')
+    jsonFile = json.load(jsonF)
+    jsonName = jsonFile['pattern']
+    jsonKeys = jsonFile['outputs'][0]['fields']
+
+    print(jsonKeys)
+    jsonFields = list(jsonKeys.keys())
+    del jsonFields[0]
+
+    if list_equality_comparison(csvFields, jsonFields):
+        print('True')
+    else:
+        print('False')
+        dict_diff = set(csvFields) - set(jsonKeys.keys())
+        for key in dict_diff:
+            jsonKeys[key] = key
+        jsonFile['outputs'][0]['fields'] = jsonKeys
+
+        jsonF.seek(0)
+        jsonF.write(json.dumps(jsonFile))
+        jsonF.truncate()
+
+else:
+
+    ord_dict = OrderedDict([('BATCH_ID', None)])
+    ord_dict.update(OrderedDict([
+        (cs, cs) for cs in csvFields
+    ]))
+
+    json_dict = OrderedDict([
+        ('pattern', csvFileName),
+        ('source_args', OrderedDict([
+            ('encoding', 'UTF-8')
+        ])
+         ),
+        ('parser_args', OrderedDict([
+            ('type', 'csv'),
+            ('delimiter', ';')
+        ])
+         ),
+        ('outputs', [OrderedDict([
+            ('name', str.upper(os.path.splitext(csvFileName)[0])),
+            ('fields', ord_dict)
+        ])]
+         )
+    ])
+
+    with open(jsonFilePath, 'w') as outfile:
+        json.dump(json_dict, outfile)
+
+
+connection = cx_Oracle.connect(user='HEROSOBJ', password='HEROSOBJ', dsn='(DESCRIPTION =(ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.1.161)(PORT = 1521))(CONNECT_DATA = (SERVICE_NAME = ORCL)))')
+cursor = connection.cursor()
+querystring = "SELECT owner, table_name  FROM dba_tables"
+cursor.execute(querystring)
+column_names = [item[0] for item in cursor.description]
+print(column_names)
+data = cursor.fetchall()
+print(data)
